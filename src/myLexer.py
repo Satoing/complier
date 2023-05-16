@@ -106,7 +106,7 @@ class Lexer():
     def writeTokens(self):
         f = open("../"+DYD_PATH, mode='w')
         for token in self.tokens:
-            f.write(f'{token.value.rjust(16)} {str(token.mytype.value[0]).rjust(2, "0")}\n')
+            f.write(f'{token.value.rjust(16)} {str(token.mytype.value).rjust(2, "0")}\n')
 
     def writeErrors(self):
         f = open('../'+ERR_PATH, mode='w')

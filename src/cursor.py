@@ -1,5 +1,5 @@
 class Cursor():
-    def __init__(self, src: str):
+    def __init__(self, src):
         self.position = 0
         self.source = src
     
