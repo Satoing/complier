@@ -36,7 +36,7 @@ class Token(object):
     def __repr__(self):
         return f'[mytype: {self.mytype}, value: {self.value}]'
 
-class Varible():
+class Variable():
     def __init__(self, name, procedure, kind, mytype, level, address):
         self.name = name
         self.procedure = procedure

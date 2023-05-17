@@ -1,4 +1,6 @@
 import sys;sys.path.append("..")
+if __name__ != "__main__":
+    sys.path.append("src")
 from myType import TokenType, Token
 from cursor import Cursor
 from config import *
@@ -104,12 +106,18 @@ class Lexer():
         return Token(TokenType.ERROR, errmsg)
     
     def writeTokens(self):
-        f = open("../"+DYD_PATH, mode='w')
+        path = ''
+        if __name__ == "__main__":
+            path = '../'
+        f = open(path+DYD_PATH, mode='w')
         for token in self.tokens:
             f.write(f'{token.value.rjust(16)} {str(token.mytype.value).rjust(2, "0")}\n')
 
     def writeErrors(self):
-        f = open('../'+ERR_PATH, mode='w')
+        path = ''
+        if __name__ == "__main__":
+            path = '../'
+        f = open(path+ERR_PATH, mode='w')
         for err in self.errors:
             f.write(err+'\n')
 
@@ -138,7 +146,10 @@ class Lexer():
 
     @staticmethod
     def readSource():
-        f = open("../"+SOURCE_PATH)
+        path = ''
+        if __name__ == "__main__":
+            path = '../'
+        f = open(path+SOURCE_PATH)
         return f.read()
 
 if __name__ == "__main__":
