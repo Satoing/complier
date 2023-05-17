@@ -11,124 +11,372 @@ class Parser():
         self.cursor = Cursor(Parser.readTokens()) # 将token作为输入
         self.currentVariableAddress = -1 # 当前还没有读取变量
         self.shouldAddError = True
-        self.correctTokens = [] # 二元式
+        self.correctTokens = [] # 二元式表
         self.variables = [] # 变量表
         self.procedures = [] # 过程表
         self.errors = [] # 错误信息文件
         
     def parse(self):
-        pass
+        try:
+            self.parseProgram()
+            return len(self.errors) == 0
+        except Exception as e:
+            self.errors.append(e + '[FATAL]')
+            return False
+        finally:
+            # 写入文件
+            pass
     
     def parseProgram(self):
-        pass
+        # <程序> -> <分程序>
+        self.parseSubprogram()
+        self.match(TokenType.END_OF_FILE)
     
     def parseSubprogram(self):
-        pass
+        # <分程序> -> begin <说明语句表>; <执行语句表> end
+        self.match(TokenType.BEGIN)
+        self.parseDeclarations()
+        self.parseExecutions()
+        self.match(TokenType.END)
     
     def parseDeclarations(self):
-        pass
+        # <说明语句表> -> <说明语句> | <说明语句表>; <说明语句>
+        self.parseDeclaration()
+        self.parseDeclarations_()
     
     def parseDeclarations_(self):
-        pass
+        # 需要判断是否是类型说明（这里就是INTEGER）
+        if self.hasType(TokenType.INTEGER):
+            self.parseDeclaration()
+            self.parseDeclarations_()
     
     def parseDeclaration(self):
-        pass
-    
+        # 消除公共左因子
+        self.match(TokenType.INTEGER)
+        self.parseDeclaration_()
+        self.match(TokenType.SEMICOLON)
+
+    def parseDeclaration_(self):
+        # 区别变量声明和函数声明
+        if self.hasType(TokenType.IDENTIFIER): # 变量声明
+            self.parseVariableDeclaration()
+            return
+        elif self.hasType(TokenType.FUNCTION):
+            self.parseProcedureDeclaration()
+            return
+        value = self.consumeToken()
+        self.throwError(f'{value} is not a valid variable name')
+
     def parseVariableDeclaration(self):
-        pass
+        # 需要把变量写进变量表
+        value = self.match(TokenType.IDENTIFIER)
+        self.registerVariable(value)
     
     def parseVariable(self):
-        pass
+        self.match(TokenType.IDENTIFIER)
+        if not self.findVariable(value):
+            self.addError(f'Undefined variable {value}')
     
     def parseProcedureDeclaration(self):
-        pass
+        self.match(TokenType.FUNCTION)
+        self.parseProcedureNameDeclaration()
+        self.match(TokenType.LEFT_PARENTHESES)
+        self.parseParameterDeclaration()
+        # 右括号需要与左括号匹配
+        self.match(TokenType.RIGHT_PARENTHESES, "Unmatched '('")
+        self.match(TokenType.SEMICOLON)
+        self.parseProcedureBody()
     
     def parseProcedureNameDeclaration(self):
-        pass
+        value = self.match(TokenType.IDENTIFIER)
+        self.registerProcedure(value)
     
     def parseProcedureName(self):
-        pass
+        value = self.match(TokenType.IDENTIFIER)
+        if not self.findProcedure(value):
+            self.addError(f'Unidefined procedure {value}')
     
     def parseParameterDeclaration(self):
-        pass
+        value = self.match(TokenType.IDENTIFIER)
+        self.registerParameter(value)
     
     def parseProcedureBody(self):
-        pass
+        self.match(TokenType.BEGIN)
+        self.parseDeclarations()
+        self.parseExecutions()
+        self.match(TokenType.END)
+        # 函过程调用栈的处理（删除第一个元素）
+        self.callStack.pop(0)
     
     def parseExecutions(self):
-        pass
+        self.parseExecution()
+        self.parseExecutions_()
     
     def parseExecutions_(self):
-        pass
+        if self.hasType(TokenType.SEMICOLON):
+            self.match(TokenType.SEMICOLON)
+            self.parseExecution()
+            self.parseExecutions_()
     
     def parseExecution(self):
-        pass
+        # read语句
+        if self.hasType(TokenType.READ):
+            self.parseRead();
+            return
+        # write语句
+        elif self.hasType(TokenType.WRITE):
+            self.parseWrite()
+            return
+        # 赋值语句
+        elif self.hasType(TokenType.IDENTIFIER):
+            self.parseAssignment()
+            return
+        # 条件语句
+        elif self.hasType(TokenType.IF):
+            self.parseCondition()
+            return 
+        # 出错处理
+        value = self.consumeToken()
+        self.throwError(f'Expect executions, but got {value}. Please move all declarations to the beginning of the procedure')
     
     def parseRead(self):
-        pass
+        self.match(TokenType.READ)
+        self.match(TokenType.LEFT_PARENTHESES)
+        self.parseVariable()
+        self.match(TokenType.RIGHT_PARENTHESES)
     
     def parseWrite(self):
-        pass
+        self.match(TokenType.WRITE)
+        self.match(TokenType.LEFT_PARENTHESES)
+        self.parseVariable()
+        self.match(TokenType.RIGHT_PARENTHESES)
     
     def parseAssignment(self):
-        pass
-    
+        if self.findVariable(self.cursor.current().value):
+            self.parseVariable()
+        elif self.findProcedure(self.cursor.current().value):
+            self.parseProcedureName()
+        else:
+            value = self.consumeToken()
+            self.addError(f'Unidefined variable or procedure {value}')
+
+        self.match(TokenType.ASSIGN)
+        self.parseArithmeticExpression()
+
     def parseArithmeticExpression(self):
-        pass
+        self.parseTerm()
+        self.parseArithmeticExpression_()
     
     def parseArithmeticExpression_(self):
-        pass
+        if self.hasType(TokenType.SUBTRACT):
+            self.match(TokenType.SUBTRACT)
+            self.parseTerm()
+            self.parseArithmeticExpression_()
     
     def parseTerm(self):
-        pass
+        self.parseFactor()
+        self.parseTerm_()
     
     def parseTerm_(self):
-        pass
+        if self.hasType(TokenType.MULTIPLY):
+            self.match(TokenType.MULTIPLY)
+            self.parseFactor()
+            self.parseTerm_()
     
     def parseFactor(self):
-        pass
+        if self.hasType(TokenType.CONSTANT):
+            self.match(TokenType.CONSTANT)
+            return
+        elif self.hasType(TokenType.IDENTIFIER):
+            if self.findVariable(self.cursor.current().value):
+                self.parseVariable()
+                return
+            elif self.findProcedure(self.cursor.current().value):
+                self.parseProcedureCall()
+                return
+            value = self.consumeToken()
+            self.throwError(f'Undefined variable or procedure {value}')
+        
+        value = self.consumeToken()
+        self.throwError(f'Expect variable, procedure or constant, but got {value}')
     
     def parseProcedureCall(self):
-        pass
+        self.parseProcedureName()
+        self.match(TokenType.LEFT_PARENTHESES)
+        self.parseArithmeticExpression()
+        self.match(TokenType.RIGHT_PARENTHESES, "Unmatched '('")
     
     def parseCondition(self):
-        pass
+        self.match(TokenType.IF)
+        self.parseConditionExpression()
+        self.match(TokenType.THEN)
+        self.parseExecution()
+        self.match(TokenType.ELSE)
+        self.parseExecution()
     
     def parseConditionExpression(self):
-        pass
+        self.parseArithmeticExpression()
+        self.parseOperator()
+        self.parseArithmeticExpression()
     
     def parseOperator(self):
-        pass
+        # 匹配各种关系运算符
+        if self.hasType(TokenType.EQUAL):
+            self.match(TokenType.EQUAL)
+            return
+        elif self.hasType(TokenType.NOT_EQUAL):
+            self.match(TokenType.NOT_EQUAL)
+            return
+        elif self.hasType(TokenType.LESS_THAN):
+            self.match(TokenType.LESS_THAN)
+            return
+        elif self.hasType(TokenType.LESS_THAN_OR_EQUAL):
+            self.match(TokenType.LESS_THAN_OR_EQUAL)
+            return
+        elif self.hasType(TokenType.GREATER_THAN):
+            self.match(TokenType.GREATER_THAN)
+            return
+        elif self.hasType(TokenType.GREATER_THAN_OR_EQUAL):
+            self.match(TokenType.GREATER_THAN_OR_EQUAL)
+            return
+        
+        value = self.consumeToken()
+        self.addError(f'{value} is not a valid operator')
+        
+    def registerVariable(self, name: str):
+        if self.findParameter(name): return
+        
+        duplicateVariable = self.findDuplicateVariable(name)
+        
+        if duplicateVariable:
+            self.addError(f'Variable {name} has already been declared')
+            return
+        
+        # 定义最外层变量的过程为_start
+        procedure = "_start"
+        if self.callStack[0] is not None:  procedure = self.callStack[0]
+        self.variables.append(Varible(name, procedure, 0, "integer", len(self.callStack), self.currentVariableAddress))
+        self.currentVariableAddress += 1
+        
+        self.updateProcedureVariableAddresses()
+    
+    def findDuplicateVariable(self, name: str):
+        flag = False
+        for var in self.variables:
+            if var.name == name and var.procedure == self.callStack[0]:
+                flag = True;break
+        return flag
+    
+    def findVariable(self, name: str):
+        flag = False
+        for var in self.variables:
+            if var.name == name and var.level <= len(self.callStack):
+                flag = True;break
+        return flag
+    
+    def registerParameter(self, name: str):        
+        duplicateParameter = self.findDuplicateParameter(name)
+        
+        if duplicateParameter:
+            self.addError(f'Parameter {name} has already been declared')
+            return
+        
+        # 定义最外层变量的过程为_start
+        procedure = "_start"
+        if self.callStack[0] is not None:  procedure = self.callStack[0]
+        self.variables.append(Varible(name, procedure, 1, "integer", len(self.callStack), self.currentVariableAddress))
+        self.currentVariableAddress += 1
+        
+        self.updateProcedureVariableAddresses()
+    
+    def findDuplicateParameter(self, name: str):
+        flag = False
+        for var in self.variables:
+            if var.name == name and var.kind == 1 and var.procedure == self.callStack[0]:
+                flag = True;break
+        return flag
+    
+    def findParameter(self, name: str):
+        flag = False
+        for var in self.variables:
+            if var.name == name and var.kind == 1 and var.level <= len(self.callStack):
+                flag = True;break
+        return flag
+    
+    def registerProcedure(self, name: str):
+        duplicateProcedure = self.findDuplicateProcedure(name)
+        
+        if duplicateProcedure:
+            self.addError(f'Procedure {name} has already been declared')
+            return
+        
+        self.procedures.append(Procedure(name, "integer", len(self.callStack)+1, -1, -1))
+        
+        self.callStack.insert(0, name)
+    
+    def findDuplicateProcedure(self, name: str):
+        flag = False
+        for pro in self.procedures:
+            if pro.name == name and pro.level == len(self.callStack)+1:
+                flag = True;break
+        return flag
+    
+    def findProcedure(self, name: str):
+        flag = False
+        for pro in self.procedures:
+            if pro.name == name and pro.level <= len(self.callStack)+1:
+                flag = True;break
+        return flag
+    
+    def updateProcedureVariableAddresses(self):
+        pro = "_start"
+        if self.callStack[0] is not None:  pro = self.callStack[0]
+        procedure = self.findProcedure(pro)
+        
+        if not procedure: return
+        
+        if procedure.first == -1:
+            procedure.first = self.currentVariableAddress
+            
+        procedure.last = self.currentVariableAddress
     
     def hasType(self, expectation: TokenType):
         return expectation == self.cursor.current.mytype
     
-    def match(self, expectation, msg):
+    def match(self, expectation: TokenType, msg = None):
+        # 期望的与实际的符号不同，报错。如果传入了错误信息，则使用传入的
         if not self.hasType(expectation):
             if msg is None:
                 msg = f'Expect {Parser.translateToken(expectation)}, but got {self.cursor.current().value}'
             self.addError(msg)
+        # 即使符号与预期的不同也接收，只是增加报错信息。便于检查出尽可能多的错误
         return self.consumeToken()
     
     def consumeToken(self):
+        # 加入前后都检查一下是否是行尾（感觉只需要在加入后检查）
         self.goToNextLine()
         token = self.cursor.consume()
+        # 将正确的符号加入符号表
         self.correctTokens.append(token)
         self.goToNextLine()
         return token
     
     def goToNextLine(self):
-        # 跳过多余的空行
+        # 文件没结束且当前的符号是'\n'才移动到下一行，否则就什么也不做
         while self.cursor.isOpen() and self.hasType(TokenType.END_OF_LINE):
-            token = self.cursor.consume()
-            self.correctTokens.append(token)
-            self.line += 1
-            self.shouldAddError = True
+            token = self.cursor.consume() # 移到下一个符号
+            self.correctTokens.append(token) # 将'\n'加入符号表
+            self.line += 1 # 移动到下一行
+            self.shouldAddError = True # 每一行只报一个错
             
     def addError(self, error: str):
+        # 将错误信息添加到列表中，便于之后写入文件
         if not self.shouldAddError: return
         self.shouldAddError = False
         self.errors.append(f'Line{self.line}: {error}')
+
+    def throwError(error: str):
+        raise Exception(f'Line {self.line}: {error}')
         
     @staticmethod
     def readTokens():
@@ -145,6 +393,7 @@ class Parser():
     
     @staticmethod
     def translateToken(mytype: TokenType):
+        # 将TokenType与具体的符号联系起来，用于报错信息
         tokenTranslation = {
             TokenType.BEGIN: "'begin'",
             TokenType.END: "'end'",
@@ -176,4 +425,4 @@ class Parser():
     
 if __name__ == "__main__":
     p = Parser()   
-    print(p.translateToken(TokenType(1)))             
+    print(p.translateToken(TokenType.ASSIGN))
