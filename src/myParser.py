@@ -6,7 +6,6 @@ from cursor import Cursor
 from config import *
 
 class Parser():
-    # 成员变量：文件内容
     def __init__(self):
         self.line = 1 # 统计第几行的错误
         self.callStack = ["main"] # 从main函数开始调用
@@ -34,36 +33,36 @@ class Parser():
             self.writeErrors()
     
     def parseProgram(self):
-        # <程序> -> <分程序>
+        # <程序>→<分程序><EOF>
         self.parseSubprogram()
         self.match(TokenType.END_OF_FILE)
     
     def parseSubprogram(self):
-        # <分程序> -> begin <说明语句表>; <执行语句表> end
+        # <分程序>→begin <说明语句表><执行语句表> end
         self.match(TokenType.BEGIN)
         self.parseDeclarations()
         self.parseExecutions()
         self.match(TokenType.END)
     
     def parseDeclarations(self):
-        # <说明语句表> -> <说明语句> | <说明语句表>; <说明语句>
+        # <说明语句表>→<说明语句><说明语句表'>
         self.parseDeclaration()
         self.parseDeclarations_()
     
     def parseDeclarations_(self):
-        # 需要判断是否是类型说明（这里就是INTEGER）
+        # <说明语句表'>→<说明语句><说明语句表'>|e
         if self.hasType(TokenType.INTEGER):
             self.parseDeclaration()
             self.parseDeclarations_()
     
     def parseDeclaration(self):
-        # 消除公共左因子
+        # <说明语句>→integer <说明语句'>;
         self.match(TokenType.INTEGER)
         self.parseDeclaration_()
         self.match(TokenType.SEMICOLON)
 
     def parseDeclaration_(self):
-        # 区别变量声明和函数声明
+        # <说明语句'>→<变量说明>│<函数说明>
         if self.hasType(TokenType.IDENTIFIER): # 变量声明
             self.parseVariableDeclaration()
             return
@@ -74,16 +73,18 @@ class Parser():
         self.throwError(f"'{value}' is not a valid variable name")
 
     def parseVariableDeclaration(self):
-        # 需要把变量写进变量表
+        # <变量说明>→<变量>
         value = self.match(TokenType.IDENTIFIER).value
         self.registerVariable(value)
     
     def parseVariable(self):
+        # <变量>→<标识符>
         value = self.match(TokenType.IDENTIFIER).value
         if not self.findVariable(value):
             self.addError(f"Undefined variable '{value}'")
     
     def parseProcedureDeclaration(self):
+        # <函数说明>→function <函数名>(<参数>);<函数体>
         self.match(TokenType.FUNCTION)
         self.parseProcedureNameDeclaration()
         self.match(TokenType.LEFT_PARENTHESES)
@@ -94,50 +95,55 @@ class Parser():
         self.parseProcedureBody()
     
     def parseProcedureNameDeclaration(self):
+        # <函数名>→<标识符>
         value = self.match(TokenType.IDENTIFIER).value
         self.registerProcedure(value)
     
     def parseProcedureName(self):
+        # # <函数名>→<标识符>
         value = self.match(TokenType.IDENTIFIER).value
         if not self.findProcedure(value):
             self.addError(f"Unidefined procedure '{value}'")
     
     def parseParameterDeclaration(self):
+        # <形参>→<变量>
         value = self.match(TokenType.IDENTIFIER).value
         self.registerParameter(value)
     
     def parseProcedureBody(self):
+        # <函数体>→begin <说明语句表><执行语句表> end
         self.match(TokenType.BEGIN)
         self.parseDeclarations()
+        # 进入执行语句前检查函数的形参是否在说明语句表中定义
+        self.checkParameterDeclared()
         self.parseExecutions()
         self.match(TokenType.END)
-        # 函过程调用栈的处理（删除第一个元素）
-        self.callStack.pop(0)
+        # 函过程调用栈的处理
+        self.callStack.pop()
     
     def parseExecutions(self):
+        # <执行语句表>→<执行语句><执行语句表'>
         self.parseExecution()
         self.parseExecutions_()
     
     def parseExecutions_(self):
+        # <执行语句表'>→;<执行语句><执行语句表'>|e
         if self.hasType(TokenType.SEMICOLON):
             self.match(TokenType.SEMICOLON)
             self.parseExecution()
             self.parseExecutions_()
     
     def parseExecution(self):
-        # read语句
+        # <执行语句>→<读语句>│<写语句>│<赋值语句>│<条件语句>
         if self.hasType(TokenType.READ):
             self.parseRead();
             return
-        # write语句
         elif self.hasType(TokenType.WRITE):
             self.parseWrite()
             return
-        # 赋值语句
         elif self.hasType(TokenType.IDENTIFIER):
             self.parseAssignment()
             return
-        # 条件语句
         elif self.hasType(TokenType.IF):
             self.parseCondition()
             return 
@@ -146,18 +152,21 @@ class Parser():
         self.throwError(f"Expect executions, but got '{value}'. Please move all declarations to the beginning of the procedure")
     
     def parseRead(self):
+        # <读语句>→read(<变量>)
         self.match(TokenType.READ)
         self.match(TokenType.LEFT_PARENTHESES)
         self.parseVariable()
         self.match(TokenType.RIGHT_PARENTHESES)
     
     def parseWrite(self):
+        # <写语句>→write(<变量>)
         self.match(TokenType.WRITE)
         self.match(TokenType.LEFT_PARENTHESES)
         self.parseVariable()
         self.match(TokenType.RIGHT_PARENTHESES)
     
     def parseAssignment(self):
+        # <赋值语句>→<变量>:=<算术表达式>|<函数名>:=<算术表达式>
         if self.findVariable(self.cursor.current().value):
             self.parseVariable()
         elif self.findProcedure(self.cursor.current().value):
@@ -170,26 +179,31 @@ class Parser():
         self.parseArithmeticExpression()
 
     def parseArithmeticExpression(self):
+        # <算术表达式>→<项><算术表达式'>
         self.parseTerm()
         self.parseArithmeticExpression_()
     
     def parseArithmeticExpression_(self):
+        # <算术表达式'>→-<项><算术表达式'>|e
         if self.hasType(TokenType.SUBTRACT):
             self.match(TokenType.SUBTRACT)
             self.parseTerm()
             self.parseArithmeticExpression_()
     
     def parseTerm(self):
+        # <项>→<因子><项'>
         self.parseFactor()
         self.parseTerm_()
     
     def parseTerm_(self):
+        # <项'>→*<因子><项'>|e
         if self.hasType(TokenType.MULTIPLY):
             self.match(TokenType.MULTIPLY)
             self.parseFactor()
             self.parseTerm_()
     
     def parseFactor(self):
+        # <因子>→<变量>│<常数>│<函数调用>
         if self.hasType(TokenType.CONSTANT):
             self.match(TokenType.CONSTANT)
             return
@@ -207,12 +221,14 @@ class Parser():
         self.throwError(f"Expect variable, procedure or constant, but got '{value}'")
     
     def parseProcedureCall(self):
+        # <函数调用>→<函数名>(<算术表达式>)
         self.parseProcedureName()
         self.match(TokenType.LEFT_PARENTHESES)
         self.parseArithmeticExpression()
         self.match(TokenType.RIGHT_PARENTHESES, "Unmatched '('")
     
     def parseCondition(self):
+        # <条件语句>→if<条件表达式>then<执行语句>else<执行语句>
         self.match(TokenType.IF)
         self.parseConditionExpression()
         self.match(TokenType.THEN)
@@ -221,12 +237,13 @@ class Parser():
         self.parseExecution()
     
     def parseConditionExpression(self):
+        # <条件表达式>→<算术表达式><关系运算符><算术表达式>
         self.parseArithmeticExpression()
         self.parseOperator()
         self.parseArithmeticExpression()
     
     def parseOperator(self):
-        # 匹配各种关系运算符
+        # <关系运算符> →<│<=│>│>=│=│<>
         if self.hasType(TokenType.EQUAL):
             self.match(TokenType.EQUAL)
             return
@@ -250,67 +267,66 @@ class Parser():
         self.addError(f"'{value}' is not a valid operator")
         
     def registerVariable(self, name: str):
-        if self.findParameter(name): return
+        # 如果是形参，则已经加入过了，将defined属性改为True
+        var = self.findParameter(name)
+        if var: var.defined = True;return
         
+        # 检查变量重定义的错误
         duplicateVariable = self.findDuplicateVariable(name)
-        
         if duplicateVariable:
             self.addError(f"Variable '{name}' has already been declared")
             return
         
-        # 定义最外层变量的过程为_start
-        procedure = "_start"
-        if self.callStack[0] is not None:  procedure = self.callStack[0]
-        self.variables.append(Variable(name, procedure, 0, "integer", len(self.callStack), self.currentVariableAddress+1))
+        # 需要加入的情况，将变量信息加入variables列表中，然后
+        self.variables.append(Variable(name, self.callStack[-1], 0, "integer", len(self.callStack), self.currentVariableAddress+1))
         self.currentVariableAddress += 1
-        
+        # 动态更新相应过程的first和last
         self.updateProcedureVariableAddresses()
     
     def findDuplicateVariable(self, name: str):
+        # 检查是否有在同一个过程中变量多次定义的情况
         for var in self.variables:
-            if var.name == name and var.procedure == self.callStack[0]:
+            if var.name == name and var.procedure == self.callStack[-1]:
                 return var
     
     def findVariable(self, name: str):
+        # 检查是否在该层定义过该变量，使用一个变量前都应该检查一下
         for var in self.variables:
-            if var.name == name and var.level <= len(self.callStack):
+            if var.name == name and var.level == len(self.callStack):
                 return var
     
     def registerParameter(self, name: str):
+        # 一开始直接按惯性思维认为函数可以传多个形参，之后再看文法才发现一个函数只能传一个参数
+        # 但是也懒得改了，就这样吧
         duplicateParameter = self.findDuplicateParameter(name)
-        
         if duplicateParameter:
             self.addError(f"Parameter '{name}' has already been declared")
             return
         
-        # 定义最外层变量的过程为_start
-        procedure = "_start"
-        if self.callStack[0] is not None:  procedure = self.callStack[0]
-        self.variables.append(Variable(name, procedure, 1, "integer", len(self.callStack), self.currentVariableAddress+1))
+        self.variables.append(Variable(name, self.callStack[-1], 1, "integer", len(self.callStack), self.currentVariableAddress+1, self.line))
         self.currentVariableAddress += 1
-        
         self.updateProcedureVariableAddresses()
     
     def findDuplicateParameter(self, name: str):
         for var in self.variables:
-            if var.name == name and var.kind == 1 and var.procedure == self.callStack[0]:
+            if var.name == name and var.kind == 1 and var.procedure == self.callStack[-1]:
                 return var
     
     def findParameter(self, name: str):
+        # 检查当前变量是否是形参
         for var in self.variables:
             if var.name == name and var.kind == 1 and var.level <= len(self.callStack):
                 return var
     
     def registerProcedure(self, name: str):
+        # 检查是否存在同级过程重定义的情况。有就报错
         duplicateProcedure = self.findDuplicateProcedure(name)
-        
         if duplicateProcedure:
             self.addError(f"Procedure '{name}' has already been declared")
             return
-        
+        # 在进行该操作的时候还没有处理形参，所以first和last都先初始化为-1。后面动态更新
         self.procedures.append(Procedure(name, "integer", len(self.callStack)+1, -1, -1))
-        
-        self.callStack.insert(0, name)
+        self.callStack.append(name)
     
     def findDuplicateProcedure(self, name: str):
         for pro in self.procedures:
@@ -323,16 +339,22 @@ class Parser():
                 return pro
     
     def updateProcedureVariableAddresses(self):
-        pro = "_start"
-        if self.callStack[0] is not None:  pro = self.callStack[0]
-        procedure = self.findProcedure(pro)
-        
+        procedure = self.findProcedure(self.callStack[-1])
         if not procedure: return
         
+        # first只在第一次初始化
         if procedure.first == -1:
             procedure.first = self.currentVariableAddress
-            
+        # last需要不断更新
         procedure.last = self.currentVariableAddress
+    
+    def checkParameterDeclared(self):
+        # 检查函数的形参是否定义。如果没定义就报错
+        for var in self.variables:
+            if var.level == len(self.callStack) and var.kind == 1 and var.defined == False:
+                errmsg = f"Line {var.line}: parameter '{var.name}' is not declared in the function body"
+                self.errors.append(errmsg)
+            
     
     def hasType(self, expectation: TokenType):
         return expectation == self.cursor.current().mytype
@@ -347,11 +369,11 @@ class Parser():
         return self.consumeToken()
     
     def consumeToken(self):
-        # 加入前后都检查一下是否是行尾（感觉只需要在加入后检查）
-        self.goToNextLine()
+        # self.goToNextLine()
         token = self.cursor.consume()
         # 将正确的符号加入符号表
         self.correctTokens.append(token)
+        # 加入后检查一下是否是行尾
         self.goToNextLine()
         return token
     
@@ -382,24 +404,21 @@ class Parser():
     
     def writeVariables(self):
         path = ''
-        if __name__ == "__main__":
-            path = '../'
+        if __name__ == "__main__": path = '../'
         f = open(path+VAR_PATH, mode='w')
         for var in self.variables:
             f.write(f'{var.name.rjust(16)} {var.procedure.rjust(16)} {var.kind} {var.type} {var.level} {var.address}\n')
     
     def writeProcedures(self):
         path = ''
-        if __name__ == "__main__":
-            path = '../'
+        if __name__ == "__main__": path = '../'
         f = open(path+PRO_PATH, mode='w')
         for pro in self.procedures:
             f.write(f'{pro.name.rjust(16)} {pro.type} {pro.level} {pro.first} {pro.last}\n')
     
     def writeErrors(self):
         path = ''
-        if __name__ == "__main__":
-            path = '../'
+        if __name__ == "__main__": path = '../'
         f = open(path+ERR_PATH, mode='w')
         for err in self.errors:
             f.write(err+'\n')
@@ -407,17 +426,14 @@ class Parser():
     @staticmethod
     def readTokens():
         path = ''
-        if __name__ == "__main__":
-            path = '../'
+        if __name__ == "__main__": path = '../'
         f = open(path+DYD_PATH)
         text = f.read().strip()
         tokens = []
-        
         for line in text.split('\n'):
             value, mytype = line.strip().split(" ")
             if (not value) or (not value): continue
             tokens.append(Token(TokenType(int(mytype)), value))
-        
         return tokens  
     
     @staticmethod

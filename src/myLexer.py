@@ -54,7 +54,7 @@ class Lexer():
             elif len(value) <= MAX_IDENTIFIER_LENGTH:
                 return Token(TokenType.IDENTIFIER, value)
             else:
-                errmsg = f'Line{self.line}: Error3, Identifier name {value} exceeds {MAX_IDENTIFIER_LENGTH} characters'
+                errmsg = f"Line{self.line}: Error3, Identifier name '{value}' exceeds {MAX_IDENTIFIER_LENGTH} characters"
                 return Token(TokenType.ERROR, errmsg) 
 
         if Lexer.isDigit(initial): 
@@ -102,7 +102,7 @@ class Lexer():
             return Token(TokenType.END_OF_LINE, 'EOLN')
 
         # 否则就是无法识别的字符返回
-        errmsg = f'Line{self.line}: Error1, Invalid character {initial}'
+        errmsg = f"Line{self.line}: Error1, Invalid character '{initial}'"
         return Token(TokenType.ERROR, errmsg)
     
     def writeTokens(self):

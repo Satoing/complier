@@ -37,13 +37,15 @@ class Token(object):
         return f'[mytype: {self.mytype}, value: {self.value}]'
 
 class Variable():
-    def __init__(self, name, procedure, kind, mytype, level, address):
+    def __init__(self, name, procedure, kind, mytype, level, address, line = -1, defined = False):
         self.name = name
         self.procedure = procedure
         self.kind = kind
         self.type = mytype
         self.level = level
         self.address = address
+        self.defined = defined
+        self.line = line
         
     def __repr__(self) -> str:
         return '{'+f'name: {self.name}, procedure: {self.procedure}, kind: {self.kind}, type: {self.type}, level: {self.level}, address: {self.address}'+'}'
